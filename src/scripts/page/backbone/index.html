@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="X-UA-Compatible" content="ie=edge">
+    <title>backbind demo</title>
+    <style>
+        html,body{
+            padding: 0;
+            margin: 0;
+            height: 100%;
+            width: 100%;
+            font-size: 16px;
+            color: #212121;
+        }
+        .wrapper{
+            height: 100%;
+            width: 100%;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            background-color: #eee;
+        }
+        .input-label{
+            height: 44px;
+        }
+        .input{
+            height: 44px;
+            margin-left: 10px;
+            width: 150px;
+            border: none;
+            padding: 0;
+        }
+        .data-wrapper{
+            height: 44px;
+            margin-top: 20px;
+            font-size: 0;
+        }
+        .data{
+            display: inline-block;
+            vertical-align: middle;
+            height: 44px;
+            line-height: 44px;
+            padding: 0 10px;
+            text-decoration: underline;
+            font-size: 16px;
+            width: 150px;
+        }
+        .btn{
+            display: inline-block;
+            vertical-align: middle;
+            background-color: #ff8900;
+            border-radius: 4px;
+            height: 40px;
+            line-height: 40px;
+            color: #fff;
+            width: 100px;
+            font-size: 16px;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+    <div class="wrapper" id="root">
+        <label class="input-label">input输入框: <input data-bind="inputVal" class="input" ></label>
+        <div class="data-wrapper">
+            <span class="btn">随机重置</span>
+            <span class="data" id="data"></span>
+        </div>
+    </div>
+    <script>
+        // 构建发布订阅原型
+        class PubSub {
+            // 所有的订阅事件名 和 相应的订阅回调[对于双向绑定一般就是修改视图或者model数据] 
+            // 格式 {eventName: [subCallback1, subCallback2, subCallback3]}
+            constructor(){
+                this.eventCenter = {};
+            }
+            // 订阅处理 将订阅的事件名 和 订阅回调
+            subscribe(eventName, callback) {
+                if(this.eventCenter.hasOwnProperty(eventName)) {
+                    this.eventCenter[eventName].push(callback);
+                } else {
+                    this.eventCenter[eventName] = [callback];
+                }
+            }
+            // 发布 需要调用this.eventCenter对应的订阅回调
+            publish(eventName, ...args) {
+                if(this.eventCenter.hasOwnProperty(eventName)) {
+                    const callbacks = this.eventCenter[eventName];
+                    for (let i in callbacks) {
+                        try {
+                            callbacks[i].apply(this, args);
+                        } catch(error) {
+                            console.log(error);
+                        }
+                    }
+                }
+            }
+        }
+        // 实例化 发布订阅 和 model数据 使用事件名称 model-change[数据变化] view-change[视图变化]
+        let InstancePubSub = new PubSub();
+        let userModelData = {
+            // model 数据存放容器
+            data: {
+                inputVal: 'init'
+            },
+            // 定义model数据的读写方法
+
+            // 1. 写方法 需要更新视图 [修改model的唯一途径就是调用_setData]
+            _setData: (key, value) => {
+                this.data[key] = value;
+                // 发布model-change 更新视图
+                InstancePubSub.publish("model-change", key, value);
+            },
+            // 2. 读方法
+            _getData: (key) => {
+                return this.data[key];
+            }
+        }
+        // 初始化 双向绑定 订阅 添加双向绑定事件 view-change model-change和对应处理
+
+        // 1. 订阅model事件， 需要驱动视图变化
+        InstancePubSub.subscribe("model-change", (key, value)=>{
+            let elements = document.querySelectorAll(`[data-bind='${key}']`) || [];
+            elements.forEach( item => {
+                if(item.nodeName === 'INPUT') { // 本实例仅处理input表单
+                    item.value = value;
+                }
+            });
+        });
+
+        // 2. 订阅view事件 视图变化时需要修改model对应数据
+        InstancePubSub.subscribe("view-change", (key, value)=>{
+            userModelData._setData(key, value);
+            // 将model的值放到对比元素上展示 和 input 对比
+            document.querySelector('#data').innerHTML = userModelData._getData(key);
+        });
+
+        // 3. 添加input的事件监听[发布view-change事件]，input修改时需要发布事件来 周知修改model对应的数据
+        let rootEle = document.querySelector('#root');
+        rootEle.addEventListener('input', (e) => {
+            // 仅处理data-bind=“key”的input表单
+            let bindKey = e.target.getAttribute('data-bind'),
+                evtNodeName = e.target.nodeName;
+            if(bindKey && evtNodeName === 'INPUT') {
+                const value = e.target.value;
+                InstancePubSub.publish("view-change", bindKey, value);
+            }
+        });
+
+        // 实例 测试 修改model测试view是否变化
+        let dataEleBtn = document.querySelector('.btn');
+        dataEleBtn.addEventListener('click', (e) => {
+            let currData = parseInt(Math.random()*100);
+            userModelData._setData('inputVal', currData);
+            document.querySelector('#data').innerHTML = currData;
+        });
+
+    </script>
+</body>
+</html>
