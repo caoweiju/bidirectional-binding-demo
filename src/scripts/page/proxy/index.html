@@ -94,10 +94,11 @@
                         return Reflect.get(target, key, receiver);
                     },
                     set(target, key, value, receiver){
+                        Reflect.set(target, key, value, receiver);
                         // 设置添加的视图变化
                         let currWatchs = self._watcherMap[key];
                         currWatchs.map( watch => watch.update() );
-                        return Reflect.set(target, key, value, receiver);
+                        return true;
                     }
                 });
                 return _res;
