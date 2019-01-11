@@ -77,35 +77,30 @@
                 const {element, data} = props;
                 this.$element = element;
                 this._options = props;
-                this._data = data;
                 
                 // data中每个key对应的wtacher 
                 this._watcherMap = {};
 
-                this._observe(data);
+                this._data = this._observe(data);
                 this._compile(element);
             }
-            // 可以对数据进行劫持处理
+            // proxy 可以对数据进行劫持处理 
             _observe(data={}) {
                 let self = this,
-                    keys = Object.keys(data);
-                keys.map( key => {
-                    let currValue = data[key];
-                    self._watcherMap[key] = [];
-                    Object.defineProperty(self._data, key, {
-                        configurable: true,
-                        enumerable: true,
-                        get(){
-                            return currValue
-                        },
-                        set(newValue){
-                            // 设置添加的视图变化
-                            currValue = newValue;
-                            let currWatchs = self._watcherMap[key];
-                            currWatchs.map( watch => watch.update() );
-                        }
-                    })
+                    _res = {};
+
+                _res = new Proxy(data, {
+                    get(target, key, receiver){
+                        return Reflect.get(target, key, receiver);
+                    },
+                    set(target, key, value, receiver){
+                        // 设置添加的视图变化
+                        let currWatchs = self._watcherMap[key];
+                        currWatchs.map( watch => watch.update() );
+                        return Reflect.set(target, key, value, receiver);
+                    }
                 });
+                return _res;
             }
             // 将view中的元素节点进行扫描 并通过watcher来完成绑定实现
             _compile(element){
@@ -122,10 +117,8 @@
                     if(child.hasAttribute('v-model') && child.nodeName === 'INPUT') {
                         // 将绑定的值处理 新建watch 加入到绑定
                         let model_key = child.getAttribute('v-model');
-                        if(!self._watcherMap[model_key]) {
-                            console.error('no such data');
-                            return false;
-                        }
+                        
+                        self._watcherMap[model_key] || (self._watcherMap[model_key] = []);
                         self._watcherMap[model_key].push(new Watcher({
                             vm: self,
                             ele: child,
