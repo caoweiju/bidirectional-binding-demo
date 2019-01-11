@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="X-UA-Compatible" content="ie=edge">
+    <title>defineProperty demo</title>
+    <style>
+        html,body{
+            padding: 0;
+            margin: 0;
+            height: 100%;
+            width: 100%;
+            font-size: 16px;
+            color: #212121;
+        }
+        .wrapper{
+            height: 100%;
+            width: 100%;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            background-color: #eee;
+        }
+        .input-label{
+            height: 44px;
+        }
+        .input{
+            height: 44px;
+            margin-left: 10px;
+            width: 150px;
+            border: none;
+            padding: 0;
+        }
+        .data-wrapper{
+            height: 44px;
+            margin-top: 20px;
+            font-size: 0;
+        }
+        .data{
+            display: inline-block;
+            vertical-align: middle;
+            height: 44px;
+            line-height: 44px;
+            padding: 0 10px;
+            text-decoration: underline;
+            font-size: 16px;
+            width: 150px;
+        }
+        .btn{
+            display: inline-block;
+            vertical-align: middle;
+            background-color: #ff8900;
+            border-radius: 4px;
+            height: 40px;
+            line-height: 40px;
+            color: #fff;
+            width: 100px;
+            font-size: 16px;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+    <div class="wrapper" id="root">
+        <label class="input-label">input输入框: <input v-model="inputVal" class="input" ></label>
+        <div class="data-wrapper">
+            <span class="btn">随机重置</span>
+            <span class="data" v-bind="inputVal"></span>
+        </div>
+    </div>
+    <script>
+        // 定义 mvvm 类
+        class  Mvvm{
+            constructor(props) {
+                const {element, data} = props;
+                this.$element = element;
+                this._options = props;
+                this._data = data;
+                
+                // data中每个key对应的wtacher 
+                this._watcherMap = {};
+
+                this._observe(data);
+                this._compile(element);
+            }
+            // 可以对数据进行劫持处理
+            _observe(data={}) {
+                let self = this,
+                    keys = Object.keys(data);
+                keys.map( key => {
+                    let currValue = data[key];
+                    self._watcherMap[key] = [];
+                    Object.defineProperty(self._data, key, {
+                        configurable: true,
+                        enumerable: true,
+                        get(){
+                            return currValue
+                        },
+                        set(newValue){
+                            // 设置添加的视图变化
+                            currValue = newValue;
+                            let currWatchs = self._watcherMap[key];
+                            currWatchs.map( watch => watch.update() );
+                        }
+                    })
+                });
+            }
+            // 将view中的元素节点进行扫描 并通过watcher来完成绑定实现
+            _compile(element){
+                let self = this,
+                    $element = element,
+                    children = $element.children,
+                    elementLen = children.length;
+                for(let i = 0; i < elementLen; i++) {
+                    let child = children[i];
+                    if(child.children.length) {
+                        self._compile(child);
+                    }
+                    // 仅仅处理 v-model v-bind 两个指令; 需要支持其他指令可以抽象指令模块，提取出来，这里直接粗暴的分开处理两个组件
+                    if(child.hasAttribute('v-model') && child.nodeName === 'INPUT') {
+                        // 将绑定的值处理 新建watch 加入到绑定
+                        let model_key = child.getAttribute('v-model');
+                        if(!self._watcherMap[model_key]) {
+                            console.error('no such data');
+                            return false;
+                        }
+                        self._watcherMap[model_key].push(new Watcher({
+                            vm: self,
+                            ele: child,
+                            key: model_key,
+                            attrOfEleSetValue: 'value'
+                        }));
+                        child.addEventListener('input', (e) => {
+                            let value = e.currentTarget.value;
+                            self._data[model_key] = value;
+                        });
+                    }
+                    // 处理v-bind指令
+                    if(child.hasAttribute('v-bind')) {
+                        // 将绑定的值处理 新建watch 加入到绑定
+                        let model_key = child.getAttribute('v-bind');
+                        if(!self._watcherMap[model_key]) {
+                            console.error('no such data');
+                            return false;
+                        }
+                        self._watcherMap[model_key].push(new Watcher({
+                            vm: self,
+                            ele: child,
+                            key: model_key,
+                            attrOfEleSetValue: 'innerHTML'
+                        }));
+                    }
+                }
+                
+            }
+
+        }
+        // 定义watch 关联视图和数据的变动
+        class Watcher{
+            constructor({vm, ele, key, attrOfEleSetValue}){
+                this.vm = vm; // mvvm 实例
+                this.ele = ele; // 当前watch对应的元素
+                this.key = key; // 当前watch对应的元素对应的mvvm实例中的_data的key
+                this.attrOfEleSetValue = attrOfEleSetValue; // 修改次ele元素的value使用的属性 value innerHTML
+                this.update(); // 更新视图
+            }
+            update() {
+                this.ele[this.attrOfEleSetValue] = this.vm._data[this.key]
+            }
+        }
+
+        // 实践测试
+        let $root = document.querySelector("#root"),
+            mvvmInstance = new Mvvm({
+                element: $root,
+                data: {
+                    inputVal: 'init'
+                }
+            });
+        let dataEleBtn = document.querySelector('.btn');
+        dataEleBtn.addEventListener('click', (e) => {
+            let currData = parseInt(Math.random()*100);
+            mvvmInstance._data.inputVal = currData;
+        });
+
+    </script>
+</body>
+</html>
