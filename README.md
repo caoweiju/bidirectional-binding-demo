@@ -1,4 +1,7 @@
 # 双向绑定的demo
+[![blog](https://img.shields.io/badge/build-passed-green.svg)](https://github.com/caoweiju/tc_blog)
+[![blog](https://img.shields.io/badge/version-v0.0.1-orange.svg)](https://www.caoweiju.com/)
+
 >本文的代码没有经过babel编译[使用class等es6+]，测试方式是在最新的`chrome`上测试，其他的版本和浏览器可能会运行出错。
 
 所有实现都直接写在了对应的`html`的`script`标签内部，没有经过编码。
